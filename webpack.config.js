@@ -1,41 +1,23 @@
 const path = require('path');
-const HtmlWebpackPlugin = require('html-webpack-plugin');
-
 const merge = require('webpack-merge');
 const validate = require('webpack-validator');
-const parts = require('./libs/parts');
+/*
+ * get the configuration modules
+ */
+const common = require('./libs/webpack_common');
+const css    = require('./libs/webpack_css')
+const minify = require('./libs/webpack_minify')
+/*
+ * get the package.json so that we can extract the dependencies into a vendor bundle
+ */
 const pkg = require('./package.json');
-
+/*
+ * determine root paths
+ */
 const PATHS = {
   app: path.join(__dirname, 'app'),
-  build: path.join(__dirname, 'build'),
-  style: [
-    //path.join(__dirname, 'node_modules', 'purecss'),
-    path.join(__dirname, 'app', 'main.css')
-  ]
+  build: path.join(__dirname, 'build')
 };
-
-
-const common = {
-
-  // Entry accepts a path or an object of entries.
-  // We'll be using the latter form given it's
-  // convenient with more complex configurations.
-  entry: {
-    style: PATHS.style,
-    app: PATHS.app
-  },
-  output: {
-    path: PATHS.build,
-    filename: '[name].js'
-  },
-  plugins: [
-    new HtmlWebpackPlugin({
-      title: 'Webpack demo'
-    })
-  ]
-};
-
 
 var config;
 
@@ -44,7 +26,13 @@ switch(process.env.npm_lifecycle_event) {
   case 'build':
   case 'stats':
     config = merge(
-      common,
+      minify.clean(PATHS.build),
+      common.common(PATHS),
+      common.setupJS(),
+      common.autoHtml({
+        template: './app/index.ejs',
+        title: 'Webpack'
+      }),
       {
         output: {
           path: PATHS.build,
@@ -55,33 +43,31 @@ switch(process.env.npm_lifecycle_event) {
           publicPath: './'
         }
       },
-      parts.clean(PATHS.build),
-      // {
-      //   devtool: 'source-map'
-      // },
-      parts.extractBundle({
+      minify.extractBundle({
         name: 'vendor',
-        entries: ['react']//Object.keys(pkg.dependencies)
+        entries: Object.keys(pkg.client)
       }),
-      parts.extractCSS(PATHS.style),
-      parts.purifyCSS([PATHS.app]),
-      parts.minify(),
-      {});
+      css.setupCSS(),
+      minify.minify()
+      );
     break;
   default:
     config = merge(
-      common,
-      {
-        devtool: 'source-map'
-      },
-      parts.setupCSS(PATHS.style),
-      parts.devServer({
-        // Customize host/port here if needed
+      { devtool: 'source-map' },
+      common.common(PATHS),
+      common.setupJS(),
+      common.autoHtml({
+        template: './app/index.ejs',
+        title: 'Webpack'
+      }),
+      css.setupCSS(),
+      common.devServer({
         host: process.env.HOST,
         port: process.env.PORT
       })
     );
 }
+
 module.exports = validate(config, {
   quiet: true
 });
